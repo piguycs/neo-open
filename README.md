@@ -6,4 +6,4 @@ source.
 
 ## List of components
 
-- neo-ws: A Sans-IO implementation of WebSocket implementation.
+- neo-ws: A Sans-IO implementation of WebSocket protocol.
