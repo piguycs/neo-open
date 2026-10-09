@@ -1,5 +1,6 @@
 /// The handshake key is a 16 byte randomly generated base64 encoded string, as specified by the
 /// websocket protocol RFC.
+#[derive(Debug)]
 pub struct HandshakeKey([u8; 16]);
 
 impl HandshakeKey {

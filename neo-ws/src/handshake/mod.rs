@@ -12,6 +12,7 @@ pub const CRLF: &[u8] = b"\r\n";
 
 pub type HandshakeResult = Result<HandshakeStep, HandshakeError>;
 
+#[derive(Debug)]
 pub struct Handshake {
     key: HandshakeKey,
 }
@@ -146,12 +147,13 @@ impl Handshake {
     }
 }
 
+#[derive(Debug)]
 pub enum HandshakeStep {
     Incomplete(Handshake),
     Done { conn: Connection, consumed: usize },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum HandshakeError {
     NotSwitchingProtocols,
     HashInvalid,
@@ -240,4 +242,79 @@ mod test {
 
         assert!(resp.is_err());
     }
+
+    fn get_handshaked() -> Handshake {
+        let key = HandshakeKey::new_random().unwrap();
+        Handshake::new(key)
+    }
+
+    #[test]
+    fn no_splits_in_response() {
+        let hs = get_handshaked();
+        let step = hs.response(b"HTTP/1.1 200 Halloooo").unwrap();
+
+        assert!(matches!(step, HandshakeStep::Incomplete(_)));
+    }
+
+    #[test]
+    fn incorrect_http() {
+        let hs = get_handshaked();
+        let step = hs.response(b"HTTP/2.1 101 Switching\r\n\r\n");
+
+        assert_eq!(step.unwrap_err(), HandshakeError::HttpVersionInvalid);
+    }
+
+    #[test]
+    fn incorrect_status() {
+        let hs = get_handshaked();
+        let step = hs.response(b"HTTP/1.1 500 Oops\r\n\r\n");
+
+        assert_eq!(step.unwrap_err(), HandshakeError::HttpStatusNotSwitching);
+    }
+
+    #[test]
+    fn no_headers() {
+        let hs = get_handshaked();
+        let step = hs.response(b"HTTP/1.1 101 Switching\r\n\r\n");
+
+        assert_eq!(
+            step.unwrap_err(),
+            HandshakeError::HeadersInvalid {
+                upgrade_valid: false,
+                connection_valid: false,
+            }
+        );
+    }
+
+    #[test]
+    fn valid_resp() {
+        let hs = get_handshaked();
+        let req = b"HTTP/1.1 101 Switching\r\nUpgrade: WebSocket\r\nConnection: upgrade\r\n\r\n";
+        let step = hs.response(req);
+
+        assert!(matches!(
+            step.unwrap(),
+            HandshakeStep::Done {
+                consumed,
+                ..
+            } if consumed == req.len()
+        ));
+    }
+
+    #[test]
+    fn skip_invalid_headers() {
+        let hs = get_handshaked();
+        let req = b"HTTP/1.1 101 Switching\r\nINVALIDHEADER\r\nUpgrade: WebSocket\r\nConnection: upgrade\r\n\r\n";
+        let step = hs.response(req);
+
+        assert!(matches!(
+            step.unwrap(),
+            HandshakeStep::Done {
+                consumed,
+                ..
+            } if consumed == req.len()
+        ));
+    }
+
+    // TODO: some test about sec-websocket-key would be good, once I implement that logic (if I do it)
 }
