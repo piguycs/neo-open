@@ -1,3 +1,6 @@
 [workspace]
 members = ["neo-ws"]
 resolver = "2"
+
+[workspace.dependencies]
+getrandom = "0.4"
