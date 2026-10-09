@@ -1,4 +1,4 @@
-pub const CRLF: &[u8] = b"\r\n";
+use crate::handshake::CRLF;
 
 /// This writer is made specifically for writing specific HTTP headers for the Websocket handshake.
 /// The weird functions are written such that the caller code can stay "clean" and "reviewable".
@@ -70,3 +70,31 @@ impl std::fmt::Display for BufTooSmall {
 }
 
 impl std::error::Error for BufTooSmall {}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+
+    #[test]
+    fn write() {
+        let mut buf = [0; 256];
+        let mut w = WsBufWriter::new(&mut buf);
+
+        w.write_line("GET / HTTP/1.1").unwrap();
+        w.write_line2("Host: ", "test.host").unwrap();
+        w.write_line2sb("Key: ", b"abc123").unwrap();
+        w.write_line3("Version: ", "1", "3").unwrap();
+        w.write_crlf().unwrap();
+
+        let n = w.len();
+
+        assert_eq!(
+            &buf[..n],
+            b"GET / HTTP/1.1\r\n\
+              Host: test.host\r\n\
+              Key: abc123\r\n\
+              Version: 13\r\n\r\n"
+        );
+    }
+}
